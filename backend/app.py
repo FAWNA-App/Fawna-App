@@ -1,9 +1,11 @@
-import os
 from fastapi import FastAPI, HTTPException
 from pymongo import MongoClient
 from dotenv import load_dotenv
+import os
 import logging
-from urllib.parse import urlparse
+import uvicorn
+from bson import json_util
+import json
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -12,11 +14,6 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 app = FastAPI()
-
-def get_database_name(uri):
-    parsed_uri = urlparse(uri)
-    database_name = parsed_uri.path.lstrip('/')
-    return database_name if database_name else None
 
 @app.on_event("startup")
 def startup_db_client():
@@ -30,15 +27,10 @@ def startup_db_client():
         return
 
     try:
-        database_name = get_database_name(mongodb_uri)
-        logger.debug(f"Extracted database name: {database_name}")
-
-        if not database_name:
-            logger.warning("No database name found in URI. Using default.")
-            database_name = 'default_database'
-
         app.mongodb_client = MongoClient(mongodb_uri)
-        app.mongodb = app.mongodb_client[database_name]
+        
+        # Explicitly set the database to sample_mflix
+        app.mongodb = app.mongodb_client.sample_mflix
         
         # Test the connection
         app.mongodb_client.admin.command('ping')
@@ -56,11 +48,13 @@ def shutdown_db_client():
         logger.info("MongoDB connection closed.")
 
 @app.get("/")
-def root():
+async def root():
+    logger.info("Root endpoint accessed")
     return {"message": "Hello World"}
 
 @app.get("/test_db")
-def test_db():
+async def test_db():
+    logger.info("Test DB endpoint accessed")
     if not app.mongodb_client:
         logger.error("MongoDB client is not initialized")
         raise HTTPException(status_code=500, detail="MongoDB connection not established")
@@ -73,7 +67,29 @@ def test_db():
         logger.error(f"Failed to ping MongoDB: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to connect to MongoDB: {str(e)}")
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+@app.get("/mflix_comments")
+async def get_mflix_comments():
+    logger.info("Mflix comments endpoint accessed")
+    if not app.mongodb:
+        raise HTTPException(status_code=500, detail="MongoDB connection not established")
     
+    try:
+        # Fetch 5 comments from the 'comments' collection in sample_mflix
+        comments = list(app.mongodb.comments.find({}, {"name": 1, "text": 1, "_id": 0}).limit(5))
+        
+        # Convert to JSON-serializable format
+        comments_json = json.loads(json_util.dumps(comments))
+        
+        return {"comments": comments_json}
+    except Exception as e:
+        logger.error(f"Failed to fetch comments: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch comments: {str(e)}")
+
+@app.on_event("startup")
+async def startup_event():
+    routes = [{"path": route.path, "name": route.name} for route in app.routes]
+    logger.info(f"Registered routes: {routes}")
+
+if __name__ == "__main__":
+    logger.info("Starting the application")
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="debug")
