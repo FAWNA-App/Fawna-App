@@ -28,10 +28,28 @@ import java.util.UUID
 // Custom UUID for Bluetooth Low Energy
 const val baseBluetoothUuidPostfix = "0000-1000-BEEF-00805F9B34FC"
 
+/**
+ * Creates a 16-bit UUID from a short code.
+ *
+ * Args:
+ *     shortCode16: The 16-bit short code for the UUID.
+ *
+ * Returns:
+ *     A UUID corresponding to the 16-bit short code.
+ */
 fun uuidFromShortCode16(shortCode16: String): UUID {
     return UUID.fromString("0000$shortCode16-$baseBluetoothUuidPostfix")
 }
 
+/**
+ * Creates a 32-bit UUID from a short code.
+ *
+ * Args:
+ *     shortCode32: The 32-bit short code for the UUID.
+ *
+ * Returns:
+ *     A UUID corresponding to the 32-bit short code.
+ */
 fun uuidFromShortCode32(shortCode32: String): UUID {
     return UUID.fromString("$shortCode32-$baseBluetoothUuidPostfix")
 }
@@ -43,8 +61,9 @@ class BleNodeManager(private val context: Context) {
     private val advertiser: BluetoothLeAdvertiser? = bluetoothAdapter?.bluetoothLeAdvertiser
     private val scanner: BluetoothLeScanner? = bluetoothAdapter?.bluetoothLeScanner
 
+    // Using 16-bit UUIDs
     private val serviceUuid: UUID = uuidFromShortCode16("0001") // Replace with your service UUID
-    private val characteristicUuid: UUID = uuidFromShortCode16("0001") // Replace with your characteristic UUID
+    private val characteristicUuid: UUID = uuidFromShortCode16("0002") // Replace with your characteristic UUID
 
     private val processedMessages = mutableSetOf<String>()
     private val connectedDevices = mutableListOf<BluetoothGatt>()
@@ -93,7 +112,8 @@ class BleNodeManager(private val context: Context) {
 
                 val data = AdvertiseData.Builder()
                     .addServiceUuid(ParcelUuid(serviceUuid))
-                    .setIncludeDeviceName(true)
+//                    .setIncludeDeviceName(true)
+                    .setIncludeDeviceName(false)
                     .build()
 
                 // Start advertising
@@ -108,7 +128,6 @@ class BleNodeManager(private val context: Context) {
         }
     }
 
-
     // Start scanning if permissions are granted
     fun startScanning() {
         try {
@@ -118,17 +137,14 @@ class BleNodeManager(private val context: Context) {
             }
 
             val filter = ScanFilter.Builder()
-                .setServiceUuid(ParcelUuid(serviceUuid))
+                .setServiceUuid(ParcelUuid(serviceUuid)) // 16-bit UUID
                 .build()
 
             val scanSettings = ScanSettings.Builder()
                 .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
                 .build()
 
-            // Debug: Start scanning without the filter to isolate the crash
-            scanner?.startScan(null, scanSettings, scanCallback)
-
-//            scanner?.startScan(listOf(filter), scanSettings, scanCallback) // Cause of crash at 12:29 AM (Fix this crash)
+            scanner?.startScan(listOf(filter), scanSettings, scanCallback)
         } catch (e: SecurityException) {
             Log.e("BleNodeManager", "SecurityException: Missing Bluetooth scan permission.")
         }
@@ -251,32 +267,31 @@ class BleNodeManager(private val context: Context) {
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 Log.i("BleNodeManager", "Disconnected from device: ${gatt.device.address}")
                 connectedDevices.remove(gatt)
+                try {
+                    gatt.close()
+                } catch (e: SecurityException) {
+                    Log.e("BleNodeManager", "SecurityException: Missing Bluetooth permissions.")
+                }
             }
         }
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                Log.i("BleNodeManager", "Services discovered on device: ${gatt.device.address}")
-            }
-        }
-
-        override fun onCharacteristicRead(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
-            if (status == BluetoothGatt.GATT_SUCCESS && characteristic.uuid == characteristicUuid) {
-                val message = characteristic.value.toString(Charsets.UTF_8)
-                val messageId = extractMessageId(message)
-
-                if (!processedMessages.contains(messageId)) {
-                    processedMessages.add(messageId)
-                    relayMessageToNeighbors(message, gatt)
-                    Log.i("BleNodeManager", "Received message: $message")
-                }
+                Log.i("BleNodeManager", "Services discovered")
+            } else {
+                Log.e("BleNodeManager", "Service discovery failed: $status")
             }
         }
 
         override fun onCharacteristicWrite(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                Log.i("BleNodeManager", "Message sent successfully")
+                Log.i("BleNodeManager", "Characteristic written successfully")
+                // Handle message relay here if needed
+            } else {
+                Log.e("BleNodeManager", "Failed to write characteristic: $status")
             }
         }
+
+        // Other callbacks (like onCharacteristicRead) can be added as needed
     }
 }
