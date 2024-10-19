@@ -1,113 +1,103 @@
 package com.example.fawna
 
-import android.Manifest
-import android.content.pm.PackageManager
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothSocket
+import android.content.Intent
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.widget.EditText
-import android.widget.Button
-import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
-import com.google.android.material.bottomnavigation.BottomNavigationView
-import androidx.navigation.findNavController
-import androidx.navigation.ui.AppBarConfiguration
-import androidx.navigation.ui.setupActionBarWithNavController
-import androidx.navigation.ui.setupWithNavController
 import com.example.fawna.databinding.ActivityMainBinding
+import java.io.IOException
+import java.util.*
 
 class MainActivity : AppCompatActivity() {
-
     private lateinit var binding: ActivityMainBinding
-    private lateinit var bleNodeManager: BleNodeManager
+    private lateinit var messages: MutableList<Message>
+    private lateinit var messageAdapter: MessageAdapter
+    private var bluetoothAdapter: BluetoothAdapter? = null
+    private var esp32Device: BluetoothDevice? = null
+    private var bluetoothSocket: BluetoothSocket? = null
 
-    private val PERMISSIONS_REQUEST_CODE = 1001
-    private val REQUIRED_PERMISSIONS = arrayOf(
-        Manifest.permission.BLUETOOTH_SCAN,
-        Manifest.permission.BLUETOOTH_ADVERTISE,
-        Manifest.permission.BLUETOOTH_CONNECT,
-        Manifest.permission.ACCESS_FINE_LOCATION
-    )
-
-    private lateinit var messagesTextView: TextView
-    private lateinit var newMessageEditText: EditText
-    private lateinit var sendMessageButton: Button
+    companion object {
+        private const val REQUEST_ENABLE_BT = 1
+        private const val ESP32_MAC_ADDRESS = "48:27:E2:1E:07:F1" // Replace with your ESP32's MAC address
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-//        val navView: BottomNavigationView = binding.navView
+        messages = mutableListOf()
+        messageAdapter = MessageAdapter(this, messages)
+        binding.messagesListView.adapter = messageAdapter
 
-//        val navController = findNavController(R.id.nav_host_fragment_activity_main)
-//        val appBarConfiguration = AppBarConfiguration(
-//            setOf(R.id.navigation_home, R.id.navigation_dashboard, R.id.navigation_settings)
-//        )
-//        setupActionBarWithNavController(navController, appBarConfiguration)
-//        navView.setupWithNavController(navController)
+        // Add some test messages
+        addMessage("Welcome to the local postboard!", false)
+        addMessage("This is a test message", true)
 
-        // Initialize UI components
-        messagesTextView = binding.messagesTextView // Assume you have this in your layout
-        newMessageEditText = binding.newMessageEditText // Assume you have this in your layout
-        sendMessageButton = binding.sendMessageButton // Assume you have this in your layout
+        binding.sendMessageButton.setOnClickListener { sendMessage() }
 
-        // Set up the send message button
-        sendMessageButton.setOnClickListener { sendMessage() }
-
-        // Check for Bluetooth permissions
-        checkPermissions()
+        setupBluetooth()
     }
 
-    private fun checkPermissions() {
-        val missingPermissions = REQUIRED_PERMISSIONS.filter { permission ->
-            ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED
-        }
-
-        if (missingPermissions.isNotEmpty()) {
-            ActivityCompat.requestPermissions(
-                this, missingPermissions.toTypedArray(), PERMISSIONS_REQUEST_CODE
-            )
-        } else {
-            initializeBluetooth()
-        }
-    }
-
-    private fun initializeBluetooth() {
-        bleNodeManager = BleNodeManager(this)
-        bleNodeManager.start()
-
-        // Connect to the ESP32 bulletin board device
-//        bleNodeManager.connectToDevice("ESP32_S3_NimBLE") // Replace with your ESP32 device name
+    private fun addMessage(content: String, isLocal: Boolean) {
+        messages.add(Message(content, isLocal))
+        messageAdapter.notifyDataSetChanged()
     }
 
     private fun sendMessage() {
-        val newMessage = newMessageEditText.text.toString()
-        if (newMessage.isNotBlank()) {
-            bleNodeManager.sendPost(newMessage) // Implement this in BleNodeManager
-            newMessageEditText.text.clear()
-            readMessages()
+        val message = binding.newMessageEditText.text.toString().trim()
+        if (message.isNotEmpty()) {
+            addMessage(message, true)
+            binding.newMessageEditText.setText("")
+            sendMessageToESP32(message)
         }
     }
 
-    private fun readMessages() {
-        val messages = bleNodeManager.readPosts() // Implement this in BleNodeManager
-        messagesTextView.text = messages.joinToString("\n") // Update the UI with the messages
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int, permissions: Array<String>, grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == PERMISSIONS_REQUEST_CODE) {
-            if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-                initializeBluetooth()
-            } else {
-                // Permissions denied - notify user or disable Bluetooth functionality
+    private fun sendMessageToESP32(message: String) {
+        if (bluetoothSocket?.isConnected == true) {
+            try {
+                bluetoothSocket?.outputStream?.write(message.toByteArray())
+                addMessage("Posted: $message", true)
+            } catch (e: IOException) {
+                Toast.makeText(this, "Failed to post message", Toast.LENGTH_SHORT).show()
             }
+        } else {
+            Toast.makeText(this, "Not connected to ESP32", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun setupBluetooth() {
+        bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+        if (bluetoothAdapter == null) {
+            Toast.makeText(this, "Bluetooth is not supported on this device", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        if (bluetoothAdapter?.isEnabled == false) {
+            val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
+            startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT)
+        } else {
+            connectToESP32()
+        }
+    }
+
+    private fun connectToESP32() {
+        esp32Device = bluetoothAdapter?.getRemoteDevice(ESP32_MAC_ADDRESS)
+
+        try {
+            bluetoothSocket = esp32Device?.createRfcommSocketToServiceRecord(UUID.fromString("00001101-0000-1000-8000-00805F9B34FB"))
+            bluetoothSocket?.connect()
+            Toast.makeText(this, "Connected to ESP32", Toast.LENGTH_SHORT).show()
+        } catch (e: IOException) {
+//            Toast.makeText(this, "Failed to connect to ESP32", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        bluetoothSocket?.close()
     }
 }
