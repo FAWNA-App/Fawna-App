@@ -5,6 +5,9 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.widget.EditText
+import android.widget.Button
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -28,24 +31,32 @@ class MainActivity : AppCompatActivity() {
         Manifest.permission.ACCESS_FINE_LOCATION
     )
 
+    private lateinit var messagesTextView: TextView
+    private lateinit var newMessageEditText: EditText
+    private lateinit var sendMessageButton: Button
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        val navView: BottomNavigationView = binding.navView
+//        val navView: BottomNavigationView = binding.navView
 
-        val navController = findNavController(R.id.nav_host_fragment_activity_main)
-        // Passing each menu ID as a set of Ids because each
-        // menu should be considered as top level destinations.
-        val appBarConfiguration = AppBarConfiguration(
-            setOf(
-                R.id.navigation_home, R.id.navigation_dashboard, R.id.navigation_settings
-            )
-        )
-        setupActionBarWithNavController(navController, appBarConfiguration)
-        navView.setupWithNavController(navController)
+//        val navController = findNavController(R.id.nav_host_fragment_activity_main)
+//        val appBarConfiguration = AppBarConfiguration(
+//            setOf(R.id.navigation_home, R.id.navigation_dashboard, R.id.navigation_settings)
+//        )
+//        setupActionBarWithNavController(navController, appBarConfiguration)
+//        navView.setupWithNavController(navController)
+
+        // Initialize UI components
+        messagesTextView = binding.messagesTextView // Assume you have this in your layout
+        newMessageEditText = binding.newMessageEditText // Assume you have this in your layout
+        sendMessageButton = binding.sendMessageButton // Assume you have this in your layout
+
+        // Set up the send message button
+        sendMessageButton.setOnClickListener { sendMessage() }
 
         // Check for Bluetooth permissions
         checkPermissions()
@@ -61,35 +72,38 @@ class MainActivity : AppCompatActivity() {
                 this, missingPermissions.toTypedArray(), PERMISSIONS_REQUEST_CODE
             )
         } else {
-            // All permissions are already granted
             initializeBluetooth()
         }
     }
 
     private fun initializeBluetooth() {
-        // Initialize BleNodeManager
         bleNodeManager = BleNodeManager(this)
         bleNodeManager.start()
 
-//        // Start scanning after a short delay
-//        Handler(Looper.getMainLooper()).postDelayed({
-//            bleNodeManager.startScanning()
-//        }, 1000)
-//
-//        // Start advertising after a short delay
-//        Handler(Looper.getMainLooper()).postDelayed({
-//            bleNodeManager.startAdvertising()
-//        }, 5000)
+        // Connect to the ESP32 bulletin board device
+//        bleNodeManager.connectToDevice("ESP32_S3_NimBLE") // Replace with your ESP32 device name
     }
 
-    // Handle the result of permission requests
+    private fun sendMessage() {
+        val newMessage = newMessageEditText.text.toString()
+        if (newMessage.isNotBlank()) {
+            bleNodeManager.sendPost(newMessage) // Implement this in BleNodeManager
+            newMessageEditText.text.clear()
+            readMessages()
+        }
+    }
+
+    private fun readMessages() {
+        val messages = bleNodeManager.readPosts() // Implement this in BleNodeManager
+        messagesTextView.text = messages.joinToString("\n") // Update the UI with the messages
+    }
+
     override fun onRequestPermissionsResult(
         requestCode: Int, permissions: Array<String>, grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == PERMISSIONS_REQUEST_CODE) {
             if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-                // All permissions granted, initialize Bluetooth
                 initializeBluetooth()
             } else {
                 // Permissions denied - notify user or disable Bluetooth functionality

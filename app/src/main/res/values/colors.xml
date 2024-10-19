@@ -23,4 +23,10 @@
 
     <!-- Light gray (used for bottom navigation background) -->
     <color name="nav_background">#FF2A2A2A</color>
+
+    <color name="colorPrimary">#6200EE</color> <!-- Replace with your desired color -->
+    <color name="colorPrimaryDark">#3700B3</color>
+    <color name="colorAccent">#03DAC5</color>
+
+
 </resources>

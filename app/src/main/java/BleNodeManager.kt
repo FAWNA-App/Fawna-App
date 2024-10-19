@@ -2,6 +2,7 @@ package com.example.fawna
 
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
@@ -21,6 +22,7 @@ import android.content.pm.PackageManager
 import android.os.ParcelUuid
 import android.util.Log
 import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import java.util.Timer
 import java.util.TimerTask
 import java.util.UUID
@@ -72,6 +74,8 @@ class BleNodeManager(private val context: Context) {
     private val roleSwitchInterval: Long = 5000 // Switch every 5 seconds
     private val roleSwitchTimer = Timer()
 
+    private val discoveredDevices = mutableMapOf<String, Int>() // Device address to hop count
+
     init {
         // Check for required permissions when the class is instantiated
         if (!hasPermissions()) {
@@ -82,6 +86,10 @@ class BleNodeManager(private val context: Context) {
     fun start() {
         startRoleSwitching()
         startScanning()
+    }
+
+    fun getDiscoveredDevices(): Map<String, Int> {
+        return discoveredDevices
     }
 
     // Check for required permissions before starting Bluetooth features
@@ -100,12 +108,12 @@ class BleNodeManager(private val context: Context) {
             return
         }
 
-        try {
-            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED) {
-                Log.e("BleNodeManager", "Bluetooth advertise permission not granted.")
-                return
-            }
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED) {
+            Log.e("BleNodeManager", "Bluetooth advertise permission not granted.")
+            return
+        }
 
+        try {
             if (bluetoothAdapter?.isEnabled == true) {
                 val settings = AdvertiseSettings.Builder()
                     .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
@@ -130,12 +138,12 @@ class BleNodeManager(private val context: Context) {
     // Start scanning if permissions are granted
     fun startScanning() {
         if (isCentralMode) {  // Ensure we are in central mode before scanning
-            try {
-                if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
-                    Log.e("BleNodeManager", "Bluetooth scan permission not granted.")
-                    return
-                }
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+                Log.e("BleNodeManager", "Bluetooth scan permission not granted.")
+                return
+            }
 
+            try {
                 val filter = ScanFilter.Builder()
                     .setServiceUuid(ParcelUuid(serviceUuid)) // 16-bit UUID
                     .build()
@@ -149,6 +157,8 @@ class BleNodeManager(private val context: Context) {
             } catch (e: SecurityException) {
                 Log.e("BleNodeManager", "SecurityException: Missing Bluetooth scan permission.")
             }
+        } else {
+            Log.w("BleNodeManager", "Already in central mode, skipping scanning (this should not happen)")
         }
     }
 
@@ -204,7 +214,6 @@ class BleNodeManager(private val context: Context) {
         return "$messageId:$sourceDeviceId:$timestamp:$hopCount:$content"
     }
 
-
     // Send a message to a connected device
     fun sendMessage(message: String, gatt: BluetoothGatt) {
         try {
@@ -226,6 +235,9 @@ class BleNodeManager(private val context: Context) {
     private fun relayMessageToNeighbors(message: String, senderGatt: BluetoothGatt) {
         for (connectedDevice in connectedDevices) {
             if (connectedDevice != senderGatt) {
+                // Increment hop count here and update the map
+                val hopCount = message.split(":")[3].toInt()
+                discoveredDevices[connectedDevice.device.address] = hopCount + 1
                 val service = connectedDevice.getService(serviceUuid)
                 val characteristic = service.getCharacteristic(characteristicUuid)
                 characteristic.value = message.toByteArray(Charsets.UTF_8)
@@ -239,149 +251,137 @@ class BleNodeManager(private val context: Context) {
         }
     }
 
-    // Advertise callback
+    // Advertise callback for Bluetooth LE
     private val advertiseCallback = object : AdvertiseCallback() {
-        override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
+        override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
             Log.i("BleNodeManager", "Advertising started successfully")
         }
 
         override fun onStartFailure(errorCode: Int) {
-            Log.e("BleNodeManager", "Advertising start failed: $errorCode")
+            Log.e("BleNodeManager", "Advertising failed with error code: $errorCode")
         }
     }
 
-    // Scan callback
+    // Scan callback for Bluetooth LE
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
             result?.device?.let { device ->
                 if (hasPermissions()) {
                     Log.i("BleNodeManager", "Discovered device: ${device.address}, attempting to connect.")
-                    try {
-                        device.connectGatt(context, false, gattCallback)
-                    } catch (e: SecurityException) {
-                        Log.e("BleNodeManager", "SecurityException: Missing Bluetooth permissions.")
-                    }
+                    Log.i("BleNodeManager", "Discovered device: ${device.address}, attempting to connect.")
+                    connectToDevice(device)  // Use the new method
                 } else {
                     Log.e("BleNodeManager", "Permissions not granted for connecting.")
                 }
             }
         }
 
-        override fun onBatchScanResults(results: List<ScanResult?>?) {
-            // Check if results are null or empty
-            if (results.isNullOrEmpty()) {
-                Log.d("BleNodeManager", "No scan results available.")
-                return
-            }
-
-            // Iterate through each ScanResult
-            for (result in results) {
-                // Skip null results
-                result ?: continue
-
-                // Get the device from the ScanResult
-                val device = result.device
-
-                // Log the discovered device details
-                var deviceName = "Unknown Device"
-                var deviceAddress = "Unknown Address"
-                var rssi = 127
-                try {
-                    deviceName = device.name ?: "Unknown Device"
-                    deviceAddress = device.address
-                    rssi = result.rssi
-                    Log.i("BleNodeManager", "Discovered device: Name = $deviceName, Address = $deviceAddress, RSSI = $rssi")
-                } catch (e: SecurityException) {
-                    Log.e("BleNodeManager", "SecurityException: Missing Bluetooth permissions.")
-                }
-
-                // Attempt to connect if permissions are granted
-                if (hasPermissions()) {
-                    try {
-                        Log.i("BleNodeManager", "Connecting to device: $deviceAddress")
-                        device.connectGatt(context, false, gattCallback)
-                    } catch (e: SecurityException) {
-                        Log.e("BleNodeManager", "SecurityException: Missing Bluetooth permissions.")
+        override fun onBatchScanResults(results: List<ScanResult?>) {
+            results.forEach { result ->
+                result?.device?.let { device ->
+                    if (hasPermissions()) {
+                        Log.i("BleNodeManager", "Discovered device: ${device.address}, attempting to connect.")
+                        connectToDevice(device)  // Use the new method
+                    } else {
+                        Log.e("BleNodeManager", "Permissions not granted for connecting.")
                     }
-                } else {
-                    Log.e("BleNodeManager", "Permissions not granted for connecting to $deviceAddress.")
                 }
             }
         }
 
-
         override fun onScanFailed(errorCode: Int) {
-            Log.e("BleNodeManager", "Scan failed: $errorCode")
+            Log.e("BleNodeManager", "Scan failed with error code: $errorCode")
         }
     }
 
-    // GATT callback for handling device connections and message relays
-    private val gattCallback = object : BluetoothGattCallback() {
+    // Connect to a device
+    private fun connectToDevice(device: BluetoothDevice) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            Log.e("BleNodeManager", "Bluetooth connect permission not granted.")
+            return
+        }
 
+        try {
+            device.connectGatt(context, false, gattCallback)
+        } catch (e: SecurityException) {
+            Log.e("BleNodeManager", "SecurityException: Missing Bluetooth permissions.")
+        }
+    }
+
+    // GATT callback for managing connections
+    private val gattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
-            if (newState == BluetoothProfile.STATE_CONNECTED) {
-                Log.i("BleNodeManager", "Connected to GATT server.")
-                connectedDevices.add(gatt)
-                try {
-                    gatt.discoverServices()
-                } catch (e: SecurityException) {
-                    Log.e("BleNodeManager", "SecurityException: Missing Bluetooth permissions.")
+            when (newState) {
+                BluetoothProfile.STATE_CONNECTED -> {
+                    Log.i("BleNodeManager", "Connected to device: ${gatt.device.address}")
+                    connectedDevices.add(gatt)
+                    try {
+                        gatt.discoverServices()
+                    } catch (e: SecurityException) {
+                        Log.e("BleNodeManager", "SecurityException: Missing Bluetooth permissions.")
+                    }
                 }
-            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                Log.i("BleNodeManager", "Disconnected from GATT server.")
-                connectedDevices.remove(gatt)
-                try {
-                    gatt.close()
-                } catch (e: SecurityException) {
-                    Log.e("BleNodeManager", "SecurityException: Missing Bluetooth permissions.")
+                BluetoothProfile.STATE_DISCONNECTED -> {
+                    Log.i("BleNodeManager", "Disconnected from device: ${gatt.device.address}")
+                    connectedDevices.remove(gatt)
+                    try {
+                        gatt.close()
+                    } catch (e: SecurityException) {
+                        Log.e("BleNodeManager", "SecurityException: Missing Bluetooth permissions.")
+                    }
                 }
             }
         }
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                Log.i("BleNodeManager", "Services discovered")
+                Log.i("BleNodeManager", "Services discovered for device: ${gatt.device.address}")
             } else {
-                Log.e("BleNodeManager", "Service discovery failed: $status")
+                Log.e("BleNodeManager", "Failed to discover services for device: ${gatt.device.address}, status: $status")
             }
         }
 
         override fun onCharacteristicWrite(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                Log.i("BleNodeManager", "Characteristic written successfully")
-                // Handle message relay here if needed
+                Log.i("BleNodeManager", "Characteristic written successfully to device: ${gatt.device.address}")
             } else {
-                Log.e("BleNodeManager", "Failed to write characteristic: $status")
+                Log.e("BleNodeManager", "Failed to write characteristic to device: ${gatt.device.address}, status: $status")
             }
         }
+    }
 
-        override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
-            val message = characteristic.getStringValue(0)
-            val parts = message.split(":")
+    /**
+     * Sends a message to connected devices.
+     *
+     * Args:
+     *     message: The message to be sent.
+     */
+    fun sendPost(message: String) {
+        // Create a message with a unique ID and hop count
+        try {
+            val sourceDeviceId = bluetoothAdapter?.name ?: "UnknownDevice"
+            val messageToSend = createMessage(sourceDeviceId, message)
 
-            if (parts.size < 5) {
-                Log.e("BleNodeManager", "Invalid message format.")
-                return
+            // Relay the message to connected devices
+            for (connectedDevice in connectedDevices) {
+                sendMessage(messageToSend, connectedDevice)
             }
 
-            val messageId = parts[0]
-            val sourceDeviceId = parts[1]
-            val hopCount = parts[3].toInt()
-
-            if (processedMessages.contains(messageId)) {
-                Log.i("BleNodeManager", "Duplicate message received, ignoring.")
-                return
-            }
-
-            processedMessages.add(messageId)
-
-            // Check hop count
-            if (hopCount < 5) {
-                // Relay the message to neighbors with incremented hop count
-                val newMessage = "${parts[0]}:${parts[1]}:${parts[2]}:${hopCount + 1}:${parts[4]}"
-                relayMessageToNeighbors(newMessage, gatt)
-            }
+            // Store the processed message to prevent duplication
+            processedMessages.add(messageToSend)
+        } catch (e: SecurityException) {
+            Log.e("BleNodeManager", "SecurityException: Missing Bluetooth permissions.")
+            return
         }
+    }
 
+    /**
+     * Reads the processed messages.
+     *
+     * Returns:
+     *     A list of messages that have been processed.
+     */
+    fun readPosts(): List<String> {
+        return processedMessages.toList() // Return a copy of the processed messages
     }
 }
