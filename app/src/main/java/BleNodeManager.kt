@@ -82,20 +82,27 @@ class BleNodeManager(private val context: Context) {
                 return
             }
 
-            val settings = AdvertiseSettings.Builder()
-                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
-                .setConnectable(true)
-                .build()
+            if (bluetoothAdapter?.isEnabled == true) {
+                // Stop existing advertising before starting a new one
+                advertiser?.stopAdvertising(advertiseCallback)
 
-            val data = AdvertiseData.Builder()
-                .addServiceUuid(ParcelUuid(serviceUuid))
-                .setIncludeDeviceName(true)
-                .build()
+                val settings = AdvertiseSettings.Builder()
+                    .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
+                    .setConnectable(true)
+                    .build()
 
-            // Ensure that advertiser is not null
-            advertiser?.let {
-                it.startAdvertising(settings, data, advertiseCallback)
-            } ?: Log.e("BleNodeManager", "BluetoothLeAdvertiser is null.")
+                val data = AdvertiseData.Builder()
+                    .addServiceUuid(ParcelUuid(serviceUuid))
+                    .setIncludeDeviceName(true)
+                    .build()
+
+                // Start advertising
+                advertiser?.let {
+                    it.startAdvertising(settings, data, advertiseCallback)
+                } ?: Log.e("BleNodeManager", "BluetoothLeAdvertiser is null.")
+            } else {
+                Log.e("BleNodeManager", "Bluetooth is not enabled.")
+            }
         } catch (e: SecurityException) {
             Log.e("BleNodeManager", "SecurityException: Missing Bluetooth advertise permission.")
         }
