@@ -1,0 +1,107 @@
+Fawna is an innovative mobile application designed to bridge the gap between digital connections and real-world interactions. In an era where technology often separates us, Fawna brings people together in meaningful ways.
+Key Features:
+
+Proximity-Based Connections: Using Bluetooth Low Energy (BLE) technology, Fawna helps you discover and connect with nearby users, encouraging face-to-face interactions in shared spaces.
+Smart Chat Interface: Communicate with nearby users through a unique chat system featuring predefined messages, making it easy to break the ice and locate each other in crowded environments.
+"Get to Know You" Questions: Once you've met someone, Fawna provides thoughtful questions to spark engaging conversations and deepen your connection.
+Digital Tokens: Commemorate your real-world meetups with unique, generated digital tokens. These serve as mementos of your interactions and help build a visual network of your connections.
+Privacy-Focused: Fawna prioritizes user privacy and security, giving you control over your visibility and the information you share.
+Minimalist Design: With a clean, dark-mode interface, Fawna keeps the focus on real-world interactions rather than screen time.
+
+Fawna is perfect for conferences, networking events, college campuses, or any situation where you want to make meaningful connections with people around you. It's more than just a social app – it's a tool for building authentic relationships in the digital age.
+
+Completed Tasks
+
+Dark Mode Implementation:
+
+Updated colors.xml with a grayscale color scheme
+Modified themes.xml to properly apply dark theme colors
+Ensured consistent dark theme across the app
+
+
+Navigation Bar Refactoring:
+
+Replaced "Dashboard" with "Search" functionality
+
+Added new radar/search icon
+Updated corresponding fragment and view model
+
+
+Changed "Notifications" to "Settings"
+
+Added gear icon for settings
+Renamed and updated related files (fragment, view model, layout)
+
+
+Updated string resources for new navigation items
+Adjusted layout files to reflect new navigation structure
+
+
+Basic App Structure:
+
+Set up main activity with bottom navigation
+Created fragments for Home, Search, and Settings
+
+
+
+Remaining Tasks
+
+Bluetooth Low Energy (BLE) Implementation:
+
+Implement BLE proximity detection to find nearby users
+Integrate BLE functionality with the app's UI
+
+
+Chat Interface:
+
+Develop a chat interface with predefined messages
+Implement functionality to help users locate each other in the same room
+
+
+"Get to Know You" Questions:
+
+Create a feature for users to answer questions after meeting
+Design UI for displaying and answering these questions
+
+
+Token System:
+
+Implement a system to generate small images (tokens) to commemorate successful interactions
+Design UI for displaying and managing these tokens
+
+
+Backend Integration:
+
+Set up Flask backend
+Integrate MongoDB Atlas for data storage
+Implement API calls from the Android app to the backend
+
+
+UI/UX Improvements:
+
+Refine the UI design for each main section (Home, Search, Settings)
+Ensure consistent styling and user experience across the app
+
+
+User Authentication:
+
+Implement user registration and login functionality
+Integrate authentication with the backend
+
+
+Testing:
+
+Write unit tests for key functionalities
+Perform integration testing, especially for BLE and backend communication
+
+
+Performance Optimization:
+
+Optimize app performance, especially for BLE operations
+Ensure efficient data management and storage
+
+
+Documentation:
+
+Create user documentation
+Write technical documentation for future development and maintenance
