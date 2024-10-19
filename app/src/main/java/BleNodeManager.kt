@@ -148,10 +148,11 @@ class BleNodeManager(private val context: Context) {
         } catch (e: SecurityException) {
             Log.e("BleNodeManager", "SecurityException: Missing Bluetooth scan permission.")
         }
+        Log.i("BleNodeManager", "Scanning started successfully")
     }
 
     // Start role switching
-    fun startRoleSwitching() {
+    private fun startRoleSwitching() {
         roleSwitchTimer.schedule(object : TimerTask() {
             override fun run() {
                 switchRole()
@@ -245,8 +246,47 @@ class BleNodeManager(private val context: Context) {
         }
 
         override fun onBatchScanResults(results: List<ScanResult?>?) {
-            // Handle batch scan results if needed
+            // Check if results are null or empty
+            if (results.isNullOrEmpty()) {
+                Log.d("BleNodeManager", "No scan results available.")
+                return
+            }
+
+            // Iterate through each ScanResult
+            for (result in results) {
+                // Skip null results
+                result ?: continue
+
+                // Get the device from the ScanResult
+                val device = result.device
+
+                // Log the discovered device details
+                var deviceName = "Unknown Device"
+                var deviceAddress = "Unknown Address"
+                var rssi = 127
+                try {
+                    deviceName = device.name ?: "Unknown Device"
+                    deviceAddress = device.address
+                    rssi = result.rssi
+                    Log.i("BleNodeManager", "Discovered device: Name = $deviceName, Address = $deviceAddress, RSSI = $rssi")
+                } catch (e: SecurityException) {
+                    Log.e("BleNodeManager", "SecurityException: Missing Bluetooth permissions.")
+                }
+
+                // Attempt to connect if permissions are granted
+                if (hasPermissions()) {
+                    try {
+                        Log.i("BleNodeManager", "Connecting to device: $deviceAddress")
+                        device.connectGatt(context, false, gattCallback)
+                    } catch (e: SecurityException) {
+                        Log.e("BleNodeManager", "SecurityException: Missing Bluetooth permissions.")
+                    }
+                } else {
+                    Log.e("BleNodeManager", "Permissions not granted for connecting to $deviceAddress.")
+                }
+            }
         }
+
 
         override fun onScanFailed(errorCode: Int) {
             Log.e("BleNodeManager", "Scan failed: $errorCode")
