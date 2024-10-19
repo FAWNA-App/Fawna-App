@@ -16,4 +16,4 @@ local.properties
 
 # get rid of the snapshot files
 
-./DEVOPS/SCRIPTS/snapshot/
+DEVOPS/SCRIPTS/snapshot
