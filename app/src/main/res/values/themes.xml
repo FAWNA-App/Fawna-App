@@ -19,4 +19,15 @@
         <item name="colorSurface">@color/nav_background</item>
         <item name="colorOnSurface">@color/white</item>
     </style>
+
+    <style name="Theme.Fawna.Dialog" parent="ThemeOverlay.MaterialComponents.Dialog.Alert">
+        <item name="android:windowBackground">@color/nav_background</item>
+        <item name="android:textColorPrimary">@color/white</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="buttonBarPositiveButtonStyle">@style/Theme.Fawna.Dialog.Button</item>
+    </style>
+
+    <style name="Theme.Fawna.Dialog.Button" parent="Widget.MaterialComponents.Button.TextButton.Dialog">
+        <item name="android:textColor">@color/purple_200</item>
+    </style>
 </resources>

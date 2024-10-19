@@ -7,7 +7,7 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.example.fawna.databinding.ItemTrinketBinding
 
-class TrinketAdapter : ListAdapter<Trinket, TrinketAdapter.TrinketViewHolder>(TrinketDiffCallback()) {
+class TrinketAdapter(private val onItemClick: (Trinket) -> Unit) : ListAdapter<Trinket, TrinketAdapter.TrinketViewHolder>(TrinketDiffCallback()) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): TrinketViewHolder {
         val binding = ItemTrinketBinding.inflate(LayoutInflater.from(parent.context), parent, false)
@@ -18,10 +18,11 @@ class TrinketAdapter : ListAdapter<Trinket, TrinketAdapter.TrinketViewHolder>(Tr
         holder.bind(getItem(position))
     }
 
-    class TrinketViewHolder(private val binding: ItemTrinketBinding) : RecyclerView.ViewHolder(binding.root) {
+    inner class TrinketViewHolder(private val binding: ItemTrinketBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind(trinket: Trinket) {
             binding.trinketName.text = trinket.name
             binding.trinketImage.setImageResource(trinket.imageResId)
+            binding.root.setOnClickListener { onItemClick(trinket) }
         }
     }
 
