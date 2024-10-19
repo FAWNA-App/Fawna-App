@@ -136,7 +136,7 @@ class BleNodeManager(private val context: Context) {
     }
 
     // Start scanning if permissions are granted
-    fun startScanning() {
+    private fun startScanning() {
         if (isCentralMode) {  // Ensure we are in central mode before scanning
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
                 Log.e("BleNodeManager", "Bluetooth scan permission not granted.")
@@ -144,15 +144,22 @@ class BleNodeManager(private val context: Context) {
             }
 
             try {
-                val filter = ScanFilter.Builder()
-                    .setServiceUuid(ParcelUuid(serviceUuid)) // 16-bit UUID
+                // Create a scan filter to match devices by advertised name or UUID
+                val nameFilter = ScanFilter.Builder()
+                    .setDeviceName("ESP32_S3_NimBLE") // Filter devices with name containing "ESP32"
                     .build()
+
+//                val uuidFilter = ScanFilter.Builder()
+//                    .setServiceUuid(ParcelUuid(serviceUuid)) // 16-bit UUID
+//                    .build()
 
                 val scanSettings = ScanSettings.Builder()
                     .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
                     .build()
 
-                scanner?.startScan(listOf(filter), scanSettings, scanCallback)
+                // Start scanning with both filters
+//                scanner?.startScan(listOf(nameFilter, uuidFilter), scanSettings, scanCallback)
+                scanner?.startScan(listOf(nameFilter), scanSettings, scanCallback)
                 Log.i("BleNodeManager", "Scanning started successfully")
             } catch (e: SecurityException) {
                 Log.e("BleNodeManager", "SecurityException: Missing Bluetooth scan permission.")
@@ -161,6 +168,7 @@ class BleNodeManager(private val context: Context) {
             Log.w("BleNodeManager", "Already in central mode, skipping scanning (this should not happen)")
         }
     }
+
 
     // Stop advertising if already active
     private fun stopAdvertising() {
@@ -218,7 +226,11 @@ class BleNodeManager(private val context: Context) {
     fun sendMessage(message: String, gatt: BluetoothGatt) {
         try {
             val service = gatt.getService(serviceUuid)
-            val characteristic = service.getCharacteristic(characteristicUuid)
+            if (service == null) {
+                Log.e("BleNodeManager", "Service not found for UUID: $serviceUuid")
+                return
+            }
+            val characteristic = service.getCharacteristic(characteristicUuid) // Null pointer exception here on "service"
             characteristic.value = message.toByteArray(Charsets.UTF_8)
             gatt.writeCharacteristic(characteristic)
         } catch (e: SecurityException) {
@@ -364,6 +376,7 @@ class BleNodeManager(private val context: Context) {
 
             // Relay the message to connected devices
             for (connectedDevice in connectedDevices) {
+                Log.i("BleNodeManager", "Relaying message to device: ${connectedDevice.device.name} ${connectedDevice.device.address}")
                 sendMessage(messageToSend, connectedDevice)
             }
 
