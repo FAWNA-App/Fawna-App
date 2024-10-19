@@ -95,6 +95,11 @@ class BleNodeManager(private val context: Context) {
 
     // Start advertising if permissions are granted
     fun startAdvertising() {
+        if (!isCentralMode) {  // Check if we are in peripheral mode
+            Log.w("BleNodeManager", "Already in peripheral mode, skipping advertising")
+            return
+        }
+
         try {
             if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED) {
                 Log.e("BleNodeManager", "Bluetooth advertise permission not granted.")
@@ -102,9 +107,6 @@ class BleNodeManager(private val context: Context) {
             }
 
             if (bluetoothAdapter?.isEnabled == true) {
-                // Stop existing advertising before starting a new one
-                advertiser?.stopAdvertising(advertiseCallback)
-
                 val settings = AdvertiseSettings.Builder()
                     .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
                     .setConnectable(true)
@@ -112,14 +114,11 @@ class BleNodeManager(private val context: Context) {
 
                 val data = AdvertiseData.Builder()
                     .addServiceUuid(ParcelUuid(serviceUuid))
-//                    .setIncludeDeviceName(true)
                     .setIncludeDeviceName(false)
                     .build()
 
-                // Start advertising
-                advertiser?.let {
-                    it.startAdvertising(settings, data, advertiseCallback)
-                } ?: Log.e("BleNodeManager", "BluetoothLeAdvertiser is null.")
+                advertiser?.startAdvertising(settings, data, advertiseCallback)
+                Log.i("BleNodeManager", "Advertising started successfully")
             } else {
                 Log.e("BleNodeManager", "Bluetooth is not enabled.")
             }
@@ -130,25 +129,47 @@ class BleNodeManager(private val context: Context) {
 
     // Start scanning if permissions are granted
     fun startScanning() {
-        try {
-            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
-                Log.e("BleNodeManager", "Bluetooth scan permission not granted.")
-                return
+        if (isCentralMode) {  // Ensure we are in central mode before scanning
+            try {
+                if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+                    Log.e("BleNodeManager", "Bluetooth scan permission not granted.")
+                    return
+                }
+
+                val filter = ScanFilter.Builder()
+                    .setServiceUuid(ParcelUuid(serviceUuid)) // 16-bit UUID
+                    .build()
+
+                val scanSettings = ScanSettings.Builder()
+                    .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                    .build()
+
+                scanner?.startScan(listOf(filter), scanSettings, scanCallback)
+                Log.i("BleNodeManager", "Scanning started successfully")
+            } catch (e: SecurityException) {
+                Log.e("BleNodeManager", "SecurityException: Missing Bluetooth scan permission.")
             }
+        }
+    }
 
-            val filter = ScanFilter.Builder()
-                .setServiceUuid(ParcelUuid(serviceUuid)) // 16-bit UUID
-                .build()
+    // Stop advertising if already active
+    private fun stopAdvertising() {
+        try {
+            advertiser?.stopAdvertising(advertiseCallback)
+        } catch (e: SecurityException) {
+            Log.e("BleNodeManager", "SecurityException: Missing Bluetooth advertise permission.")
+        }
+        Log.i("BleNodeManager", "Advertising stopped")
+    }
 
-            val scanSettings = ScanSettings.Builder()
-                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-                .build()
-
-            scanner?.startScan(listOf(filter), scanSettings, scanCallback)
+    // Stop scanning if already scanning
+    private fun stopScanning() {
+        try {
+            scanner?.stopScan(scanCallback)
         } catch (e: SecurityException) {
             Log.e("BleNodeManager", "SecurityException: Missing Bluetooth scan permission.")
         }
-        Log.i("BleNodeManager", "Scanning started successfully")
+        Log.i("BleNodeManager", "Scanning stopped")
     }
 
     // Start role switching
@@ -164,10 +185,10 @@ class BleNodeManager(private val context: Context) {
     private fun switchRole() {
         try {
             if (isCentralMode) {
-                scanner?.stopScan(scanCallback)
+                stopScanning()
                 startAdvertising()
             } else {
-                advertiser?.stopAdvertising(advertiseCallback)
+                stopAdvertising()
                 startScanning()
             }
             isCentralMode = !isCentralMode
@@ -176,12 +197,13 @@ class BleNodeManager(private val context: Context) {
         }
     }
 
-    // Create a message with ID, source device ID, timestamp, and content
-    fun createMessage(sourceDeviceId: String, content: String): String {
+    // Create a message with ID, source device ID, timestamp, hop count, and content
+    fun createMessage(sourceDeviceId: String, content: String, hopCount: Int = 0): String {
         val messageId = UUID.randomUUID().toString()
         val timestamp = System.currentTimeMillis()
-        return "$messageId:$sourceDeviceId:$timestamp:$content"
+        return "$messageId:$sourceDeviceId:$timestamp:$hopCount:$content"
     }
+
 
     // Send a message to a connected device
     fun sendMessage(message: String, gatt: BluetoothGatt) {
@@ -293,11 +315,12 @@ class BleNodeManager(private val context: Context) {
         }
     }
 
-    // GATT callback
+    // GATT callback for handling device connections and message relays
     private val gattCallback = object : BluetoothGattCallback() {
+
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                Log.i("BleNodeManager", "Connected to device: ${gatt.device.address}")
+                Log.i("BleNodeManager", "Connected to GATT server.")
                 connectedDevices.add(gatt)
                 try {
                     gatt.discoverServices()
@@ -305,7 +328,7 @@ class BleNodeManager(private val context: Context) {
                     Log.e("BleNodeManager", "SecurityException: Missing Bluetooth permissions.")
                 }
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                Log.i("BleNodeManager", "Disconnected from device: ${gatt.device.address}")
+                Log.i("BleNodeManager", "Disconnected from GATT server.")
                 connectedDevices.remove(gatt)
                 try {
                     gatt.close()
@@ -332,6 +355,33 @@ class BleNodeManager(private val context: Context) {
             }
         }
 
-        // Other callbacks (like onCharacteristicRead) can be added as needed
+        override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
+            val message = characteristic.getStringValue(0)
+            val parts = message.split(":")
+
+            if (parts.size < 5) {
+                Log.e("BleNodeManager", "Invalid message format.")
+                return
+            }
+
+            val messageId = parts[0]
+            val sourceDeviceId = parts[1]
+            val hopCount = parts[3].toInt()
+
+            if (processedMessages.contains(messageId)) {
+                Log.i("BleNodeManager", "Duplicate message received, ignoring.")
+                return
+            }
+
+            processedMessages.add(messageId)
+
+            // Check hop count
+            if (hopCount < 5) {
+                // Relay the message to neighbors with incremented hop count
+                val newMessage = "${parts[0]}:${parts[1]}:${parts[2]}:${hopCount + 1}:${parts[4]}"
+                relayMessageToNeighbors(newMessage, gatt)
+            }
+        }
+
     }
 }
