@@ -21,7 +21,7 @@ class TrinketAdapter : ListAdapter<Trinket, TrinketAdapter.TrinketViewHolder>(Tr
     class TrinketViewHolder(private val binding: ItemTrinketBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind(trinket: Trinket) {
             binding.trinketName.text = trinket.name
-            // TODO: Load trinket image using a library like Glide or Coil
+            binding.trinketImage.setImageResource(trinket.imageResId)
         }
     }
 

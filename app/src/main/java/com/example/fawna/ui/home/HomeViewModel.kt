@@ -3,6 +3,7 @@ package com.example.fawna.ui.home
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import com.example.fawna.R
 
 class HomeViewModel : ViewModel() {
 
@@ -20,9 +21,9 @@ class HomeViewModel : ViewModel() {
 
     private fun loadSampleTrinkets() {
         val sampleTrinkets = listOf(
-            Trinket("1", "Trinket 1", "https://example.com/image1.jpg"),
-            Trinket("2", "Trinket 2", "https://example.com/image2.jpg"),
-            Trinket("3", "Trinket 3", "https://example.com/image3.jpg"),
+            Trinket("1", "Trinket 1", R.drawable.ic_trinket_0),
+            Trinket("2", "Trinket 2", R.drawable.ic_trinket_1),
+            Trinket("3", "Trinket 3", R.drawable.ic_trinket_2),
             // Add more sample trinkets as needed
         )
         _trinkets.value = sampleTrinkets
