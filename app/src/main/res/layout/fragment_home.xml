@@ -16,20 +16,26 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
-
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/grid_trinkets"
+    
+    <androidx.core.widget.NestedScrollView
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:layout_marginTop="16dp"
         android:layout_marginBottom="16dp"
-        app:layoutManager="androidx.recyclerview.widget.GridLayoutManager"
-        app:spanCount="3"
         app:layout_constraintBottom_toTopOf="@id/button_connect"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/title_trinkets"
-        tools:listitem="@layout/item_trinket" />
+        app:layout_constraintTop_toBottomOf="@id/title_trinkets">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/grid_trinkets"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:layoutManager="androidx.recyclerview.widget.GridLayoutManager"
+            app:spanCount="3"
+            tools:listitem="@layout/item_trinket" />
+
+    </androidx.core.widget.NestedScrollView>
 
     <Button
         android:id="@+id/button_connect"
