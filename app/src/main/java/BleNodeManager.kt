@@ -226,7 +226,14 @@ class BleNodeManager(private val context: Context) {
     fun sendMessage(message: String, gatt: BluetoothGatt) {
         try {
             Log.i("BleNodeManager", "Sending message: $message")
-            Log.i("BleNodeManager", toString(gatt.services))
+            Log.i("BleNodeManager", "Bluetooth services:")
+            gatt.services?.forEach { service ->
+                Log.i("BleNodeManager", "Service UUID: ${service.uuid}")
+                service.characteristics.forEach { characteristic ->
+                    Log.i("BleNodeManager", "Characteristic UUID: ${characteristic.uuid}")
+                }
+            }
+
             val service = gatt.getService(serviceUuid)
             if (service == null) {
                 Log.e("BleNodeManager", "Service not found for UUID: $serviceUuid")
@@ -377,6 +384,7 @@ class BleNodeManager(private val context: Context) {
             val messageToSend = createMessage(sourceDeviceId, message)
 
             // Relay the message to connected devices
+            Log.i("BleNodeManager", "Devices: ${connectedDevices.size}: ${connectedDevices.map { it.device.address }}")
             for (connectedDevice in connectedDevices) {
                 Log.i("BleNodeManager", "Relaying message to device: ${connectedDevice.device.name} ${connectedDevice.device.address}")
                 sendMessage(messageToSend, connectedDevice)
