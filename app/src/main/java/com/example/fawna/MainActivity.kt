@@ -66,16 +66,17 @@ class MainActivity : AppCompatActivity() {
     private fun initializeBluetooth() {
         // Initialize BleNodeManager
         bleNodeManager = BleNodeManager(this)
+        bleNodeManager.start()
 
-        // Start scanning after a short delay
-        Handler(Looper.getMainLooper()).postDelayed({
-            bleNodeManager.startScanning()
-        }, 1000)
-
-        // Start advertising after a short delay
-        Handler(Looper.getMainLooper()).postDelayed({
-            bleNodeManager.startAdvertising()
-        }, 5000)
+//        // Start scanning after a short delay
+//        Handler(Looper.getMainLooper()).postDelayed({
+//            bleNodeManager.startScanning()
+//        }, 1000)
+//
+//        // Start advertising after a short delay
+//        Handler(Looper.getMainLooper()).postDelayed({
+//            bleNodeManager.startAdvertising()
+//        }, 5000)
     }
 
     // Handle the result of permission requests

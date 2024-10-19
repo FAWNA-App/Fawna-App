@@ -1,4 +1,4 @@
-package com.example.fawna // Replace with your actual package name
+package com.example.fawna
 
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
@@ -26,7 +26,6 @@ import java.util.TimerTask
 import java.util.UUID
 
 // Custom UUID for Bluetooth Low Energy
-// 0000-1000-8000-00805F9B34FB is the UUID actually defined in the Bluetooth SIG
 const val baseBluetoothUuidPostfix = "0000-1000-BEEF-00805F9B34FC"
 
 fun uuidFromShortCode16(shortCode16: String): UUID {
@@ -41,7 +40,6 @@ class BleNodeManager(private val context: Context) {
 
     private val bluetoothManager: BluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     private val bluetoothAdapter: BluetoothAdapter? = bluetoothManager.adapter
-
     private val advertiser: BluetoothLeAdvertiser? = bluetoothAdapter?.bluetoothLeAdvertiser
     private val scanner: BluetoothLeScanner? = bluetoothAdapter?.bluetoothLeScanner
 
@@ -53,19 +51,18 @@ class BleNodeManager(private val context: Context) {
 
     private var isCentralMode = true
     private val roleSwitchInterval: Long = 5000 // Switch every 5 seconds
-
     private val roleSwitchTimer = Timer()
 
     init {
         // Check for required permissions when the class is instantiated
-        if (hasPermissions()) {
-            startRoleSwitching()
-            startScanning()
-        } else {
+        if (!hasPermissions()) {
             Log.e("BleNodeManager", "Missing required Bluetooth permissions.")
-            // You might want to throw an exception or handle the permission issue here
-            // For example, you could request permissions or disable BLE functionality
         }
+    }
+
+    fun start() {
+        startRoleSwitching()
+        startScanning()
     }
 
     // Check for required permissions before starting Bluetooth features
@@ -95,7 +92,10 @@ class BleNodeManager(private val context: Context) {
                 .setIncludeDeviceName(true)
                 .build()
 
-            advertiser?.startAdvertising(settings, data, advertiseCallback)
+            // Ensure that advertiser is not null
+            advertiser?.let {
+                it.startAdvertising(settings, data, advertiseCallback)
+            } ?: Log.e("BleNodeManager", "BluetoothLeAdvertiser is null.")
         } catch (e: SecurityException) {
             Log.e("BleNodeManager", "SecurityException: Missing Bluetooth advertise permission.")
         }
@@ -118,8 +118,7 @@ class BleNodeManager(private val context: Context) {
                 .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
                 .build()
 
-
-            // Debug: try scanning without the filter to isolate the crash
+            // Debug: Start scanning without the filter to isolate the crash
             scanner?.startScan(null, scanSettings, scanCallback)
 
 //            scanner?.startScan(listOf(filter), scanSettings, scanCallback) // Cause of crash at 12:29 AM (Fix this crash)
@@ -128,14 +127,13 @@ class BleNodeManager(private val context: Context) {
         }
     }
 
-
     // Start role switching
     fun startRoleSwitching() {
-        roleSwitchTimer.scheduleAtFixedRate(object : TimerTask() {
+        roleSwitchTimer.schedule(object : TimerTask() {
             override fun run() {
                 switchRole()
             }
-        }, 0, roleSwitchInterval)
+        }, 0, roleSwitchInterval) // Using schedule instead of scheduleAtFixedRate
     }
 
     // Switch between central and peripheral roles
