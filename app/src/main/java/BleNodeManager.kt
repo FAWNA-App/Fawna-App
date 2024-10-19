@@ -84,7 +84,7 @@ class BleNodeManager(private val context: Context) {
     }
 
     fun start() {
-        startRoleSwitching()
+//        startRoleSwitching()
         startScanning()
     }
 
@@ -142,6 +142,9 @@ class BleNodeManager(private val context: Context) {
                 Log.e("BleNodeManager", "Bluetooth scan permission not granted.")
                 return
             }
+        } else {
+            Log.w("BleNodeManager", "Not in central mode when attempting scan, (this should not happen)")
+        }
 
             try {
                 // Create a scan filter to match devices by advertised name or UUID
@@ -164,9 +167,6 @@ class BleNodeManager(private val context: Context) {
             } catch (e: SecurityException) {
                 Log.e("BleNodeManager", "SecurityException: Missing Bluetooth scan permission.")
             }
-        } else {
-            Log.w("BleNodeManager", "Already in central mode, skipping scanning (this should not happen)")
-        }
     }
 
 
@@ -225,6 +225,8 @@ class BleNodeManager(private val context: Context) {
     // Send a message to a connected device
     fun sendMessage(message: String, gatt: BluetoothGatt) {
         try {
+            Log.i("BleNodeManager", "Sending message: $message")
+            Log.i("BleNodeManager", toString(gatt.services))
             val service = gatt.getService(serviceUuid)
             if (service == null) {
                 Log.e("BleNodeManager", "Service not found for UUID: $serviceUuid")
