@@ -1,27 +1,21 @@
 package com.example.fawna
 
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
-import android.bluetooth.BluetoothSocket
-import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.fawna.databinding.ActivityMainBinding
 import java.io.IOException
-import java.util.*
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var messages: MutableList<Message>
     private lateinit var messageAdapter: MessageAdapter
-    private var bluetoothAdapter: BluetoothAdapter? = null
-    private var esp32Device: BluetoothDevice? = null
-    private var bluetoothSocket: BluetoothSocket? = null
+    private lateinit var bleNodeManager: BleNodeManager
 
     companion object {
-        private const val REQUEST_ENABLE_BT = 1
-        private const val ESP32_MAC_ADDRESS = "48:27:E2:1E:07:F1" // Replace with your ESP32's MAC address
+        private const val PERMISSIONS_REQUEST_CODE = 100
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,7 +33,7 @@ class MainActivity : AppCompatActivity() {
 
         binding.sendMessageButton.setOnClickListener { sendMessage() }
 
-        setupBluetooth()
+        initializeBluetooth()
     }
 
     private fun addMessage(content: String, isLocal: Boolean) {
@@ -52,52 +46,51 @@ class MainActivity : AppCompatActivity() {
         if (message.isNotEmpty()) {
             addMessage(message, true)
             binding.newMessageEditText.setText("")
-            sendMessageToESP32(message)
+            sendMessageToBleNode(message)
         }
     }
 
-    private fun sendMessageToESP32(message: String) {
-        if (bluetoothSocket?.isConnected == true) {
+    private fun sendMessageToBleNode(message: String) {
+        if (bleNodeManager.hasPermissions()) {
             try {
-                bluetoothSocket?.outputStream?.write(message.toByteArray())
-                addMessage("Posted: $message", true)
+                bleNodeManager.sendPost(message)
+                Log.i("MainActivity", "Message sent: $message")
             } catch (e: IOException) {
                 Toast.makeText(this, "Failed to post message", Toast.LENGTH_SHORT).show()
             }
         } else {
-            Toast.makeText(this, "Not connected to ESP32", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Bluetooth permissions not granted", Toast.LENGTH_SHORT).show()
         }
     }
 
-    private fun setupBluetooth() {
-        bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
-        if (bluetoothAdapter == null) {
-            Toast.makeText(this, "Bluetooth is not supported on this device", Toast.LENGTH_LONG).show()
-            return
-        }
+    private fun initializeBluetooth() {
+        bleNodeManager = BleNodeManager(this)
 
-        if (bluetoothAdapter?.isEnabled == false) {
-            val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
-            startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT)
+        if (!bleNodeManager.hasPermissions()) {
+            requestPermissions(arrayOf(
+                android.Manifest.permission.BLUETOOTH_SCAN,
+                android.Manifest.permission.BLUETOOTH_CONNECT,
+                android.Manifest.permission.BLUETOOTH_ADVERTISE,
+                android.Manifest.permission.ACCESS_FINE_LOCATION
+            ), PERMISSIONS_REQUEST_CODE)
         } else {
-            connectToESP32()
+            bleNodeManager.start() // Start scanning or advertising based on the current mode
         }
     }
 
-    private fun connectToESP32() {
-        esp32Device = bluetoothAdapter?.getRemoteDevice(ESP32_MAC_ADDRESS)
-
-        try {
-            bluetoothSocket = esp32Device?.createRfcommSocketToServiceRecord(UUID.fromString("00001101-0000-1000-8000-00805F9B34FB"))
-            bluetoothSocket?.connect()
-            Toast.makeText(this, "Connected to ESP32", Toast.LENGTH_SHORT).show()
-        } catch (e: IOException) {
-//            Toast.makeText(this, "Failed to connect to ESP32", Toast.LENGTH_SHORT).show()
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == PERMISSIONS_REQUEST_CODE) {
+            if (grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+                initializeBluetooth()
+            } else {
+                Toast.makeText(this, "Permissions denied. Bluetooth will not function.", Toast.LENGTH_LONG).show()
+            }
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        bluetoothSocket?.close()
+        bleNodeManager.stopAdvertising()
     }
 }

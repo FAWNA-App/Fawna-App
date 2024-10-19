@@ -65,7 +65,8 @@ class BleNodeManager(private val context: Context) {
 
     // Using 16-bit UUIDs
     private val serviceUuid: UUID = uuidFromShortCode16("0001") // Replace with your service UUID
-    private val characteristicUuid: UUID = uuidFromShortCode16("0002") // Replace with your characteristic UUID
+    private val postUuid: UUID = uuidFromShortCode16("0002") // Replace with your characteristic UUID
+    private val readUuid: UUID = uuidFromShortCode16("0003") // Replace with your read UUID
 
     private val processedMessages = mutableSetOf<String>()
     private val connectedDevices = mutableListOf<BluetoothGatt>()
@@ -93,7 +94,7 @@ class BleNodeManager(private val context: Context) {
     }
 
     // Check for required permissions before starting Bluetooth features
-    private fun hasPermissions(): Boolean {
+    fun hasPermissions(): Boolean {
         val scanPermission = ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
         val connectPermission = ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
         val advertisePermission = ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED
@@ -171,7 +172,7 @@ class BleNodeManager(private val context: Context) {
 
 
     // Stop advertising if already active
-    private fun stopAdvertising() {
+    fun stopAdvertising() {
         try {
             advertiser?.stopAdvertising(advertiseCallback)
         } catch (e: SecurityException) {
@@ -239,7 +240,7 @@ class BleNodeManager(private val context: Context) {
                 Log.e("BleNodeManager", "Service not found for UUID: $serviceUuid")
                 return
             }
-            val characteristic = service.getCharacteristic(characteristicUuid) // Null pointer exception here on "service"
+            val characteristic = service.getCharacteristic(postUuid) // Null pointer exception here on "service"
             characteristic.value = message.toByteArray(Charsets.UTF_8)
             gatt.writeCharacteristic(characteristic)
         } catch (e: SecurityException) {
@@ -260,7 +261,7 @@ class BleNodeManager(private val context: Context) {
                 val hopCount = message.split(":")[3].toInt()
                 discoveredDevices[connectedDevice.device.address] = hopCount + 1
                 val service = connectedDevice.getService(serviceUuid)
-                val characteristic = service.getCharacteristic(characteristicUuid)
+                val characteristic = service.getCharacteristic(readUuid)
                 characteristic.value = message.toByteArray(Charsets.UTF_8)
                 try {
                     connectedDevice.writeCharacteristic(characteristic)
