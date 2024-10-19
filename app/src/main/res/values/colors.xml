@@ -1,10 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="purple_200">#FFBB86FC</color>
-    <color name="purple_500">#FF6200EE</color>
-    <color name="purple_700">#FF3700B3</color>
-    <color name="teal_200">#FF03DAC5</color>
-    <color name="teal_700">#FF018786</color>
-    <color name="black">#FF000000</color>
+    <!-- Light gray -->
+    <color name="purple_200">#FFD0D0D0</color>
+
+    <!-- Medium gray -->
+    <color name="purple_500">#FF808080</color>
+
+    <!-- Dark gray -->
+    <color name="purple_700">#FF404040</color>
+
+    <!-- Darker gray -->
+    <color name="teal_200">#FF606060</color>
+
+    <!-- Very dark gray -->
+    <color name="teal_700">#FF303030</color>
+
+    <!-- White (used for text and icons on dark backgrounds) -->
     <color name="white">#FFFFFFFF</color>
+
+    <!-- Dark gray (used for backgrounds) -->
+    <color name="background_dark">#FF121212</color>
+
+    <!-- Light gray (used for bottom navigation background) -->
+    <color name="nav_background">#FF2A2A2A</color>
 </resources>
