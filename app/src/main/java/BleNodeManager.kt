@@ -1,14 +1,41 @@
 package com.example.fawna // Replace with your actual package name
 
 import android.Manifest
-import android.bluetooth.*
-import android.bluetooth.le.*
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothGatt
+import android.bluetooth.BluetoothGattCallback
+import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothProfile
+import android.bluetooth.le.AdvertiseCallback
+import android.bluetooth.le.AdvertiseData
+import android.bluetooth.le.AdvertiseSettings
+import android.bluetooth.le.BluetoothLeAdvertiser
+import android.bluetooth.le.BluetoothLeScanner
+import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanFilter
+import android.bluetooth.le.ScanResult
+import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.ParcelUuid
 import android.util.Log
 import androidx.core.app.ActivityCompat
-import java.util.*
+import java.util.Timer
+import java.util.TimerTask
+import java.util.UUID
+
+// Custom UUID for Bluetooth Low Energy
+// 0000-1000-8000-00805F9B34FB is the UUID actually defined in the Bluetooth SIG
+const val baseBluetoothUuidPostfix = "0000-1000-BEEF-00805F9B34FC"
+
+fun uuidFromShortCode16(shortCode16: String): UUID {
+    return UUID.fromString("0000$shortCode16-$baseBluetoothUuidPostfix")
+}
+
+fun uuidFromShortCode32(shortCode32: String): UUID {
+    return UUID.fromString("$shortCode32-$baseBluetoothUuidPostfix")
+}
 
 class BleNodeManager(private val context: Context) {
 
@@ -18,8 +45,8 @@ class BleNodeManager(private val context: Context) {
     private val advertiser: BluetoothLeAdvertiser? = bluetoothAdapter?.bluetoothLeAdvertiser
     private val scanner: BluetoothLeScanner? = bluetoothAdapter?.bluetoothLeScanner
 
-    private val serviceUuid: UUID = UUID.fromString("your-service-uuid") // Replace with your service UUID
-    private val characteristicUuid: UUID = UUID.fromString("your-characteristic-uuid") // Replace with your characteristic UUID
+    private val serviceUuid: UUID = uuidFromShortCode16("0001") // Replace with your service UUID
+    private val characteristicUuid: UUID = uuidFromShortCode16("0001") // Replace with your characteristic UUID
 
     private val processedMessages = mutableSetOf<String>()
     private val connectedDevices = mutableListOf<BluetoothGatt>()
@@ -28,6 +55,18 @@ class BleNodeManager(private val context: Context) {
     private val roleSwitchInterval: Long = 5000 // Switch every 5 seconds
 
     private val roleSwitchTimer = Timer()
+
+    init {
+        // Check for required permissions when the class is instantiated
+        if (hasPermissions()) {
+            startRoleSwitching()
+            startScanning()
+        } else {
+            Log.e("BleNodeManager", "Missing required Bluetooth permissions.")
+            // You might want to throw an exception or handle the permission issue here
+            // For example, you could request permissions or disable BLE functionality
+        }
+    }
 
     // Check for required permissions before starting Bluetooth features
     private fun hasPermissions(): Boolean {
@@ -79,7 +118,11 @@ class BleNodeManager(private val context: Context) {
                 .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
                 .build()
 
-            scanner?.startScan(listOf(filter), scanSettings, scanCallback)
+
+            // Debug: try scanning without the filter to isolate the crash
+            scanner?.startScan(null, scanSettings, scanCallback)
+
+//            scanner?.startScan(listOf(filter), scanSettings, scanCallback) // Cause of crash at 12:29 AM (Fix this crash)
         } catch (e: SecurityException) {
             Log.e("BleNodeManager", "SecurityException: Missing Bluetooth scan permission.")
         }
